@@ -12,10 +12,10 @@ export const lessonPassed = (attempts: Attempt[], lessonId: string) =>
   attempts.filter(a => a.lessonId === lessonId && a.accuracy >= 95).length >= 2
 
 export const isUnlocked = (lessons: Lesson[], attempts: Attempt[], lessonIndex: number, keyboard: KeyboardKind) => {
-  const eligible = lessons.filter(l => l.supported.includes(keyboard))
-  const lesson = eligible[lessonIndex]
+  void keyboard
+  const lesson = lessons[lessonIndex]
   if (!lesson || lessonIndex === 0) return lessonIndex === 0
-  return lessonPassed(attempts, eligible[lessonIndex - 1].id)
+  return lessonPassed(attempts, lessons[lessonIndex - 1].id)
 }
 
 export const weakKeys = (attempts: Attempt[]) => {

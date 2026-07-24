@@ -5,13 +5,17 @@ import type { Lesson } from '../domain/types'
 import ReadmePreview from './ReadmePreview'
 
 const nextLesson: Lesson = {
-  id: 'foundations-1',
+  id: 'foundations/foundations-1',
+  localId: 'foundations-1',
   course: 'foundations',
+  courseTitle: 'Foundations',
+  format: 'java',
   title: 'Home row',
   subtitle: 'Start here',
   text: 'asdf',
   newKeys: ['a'],
-  supported: ['standard', 'sofle'],
+  languages: ['us', 'uk', 'it'],
+  formFactors: ['full', 'compact'],
 }
 
 const markdown = `
@@ -34,7 +38,7 @@ describe('README preview', () => {
     render(
       <ReadmePreview
         markdown={markdown}
-        progress={{ ...defaultProgress, settings: { ...defaultProgress.settings, keyboard: 'sofle', layout: 'it' } }}
+        progress={{ ...defaultProgress, settings: { ...defaultProgress.settings, formFactor: 'compact', standard: 'iso', language: 'it' } }}
         next={nextLesson}
         activeLessonId={nextLesson.id}
         onOpenLesson={vi.fn()}
@@ -44,8 +48,8 @@ describe('README preview', () => {
       />
     )
 
-    expect(screen.getByText('sofle').tagName).toBe('CODE')
-    expect(screen.getByText('it').tagName).toBe('CODE')
+    expect(screen.getByText('compact').tagName).toBe('CODE')
+    expect(screen.getByText('ISO · IT').tagName).toBe('CODE')
     expect(screen.getByText('0').tagName).toBe('CODE')
     expect(screen.getByText(nextLesson.id).tagName).toBe('CODE')
     expect(screen.getByRole('button', { name: 'Foundations / foundations_1.java' })).toBeTruthy()

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "english",
+  "title": "English",
+  "languages": ["us", "uk", "it"],
+  "format": "typescript",
+  "lessons": [
+    {
+      "id": "common-english",
+      "title": "Common English",
+      "subtitle": "Short, useful words",
+      "keys": [],
+      "items": ["the", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog"]
+    },
+    {
+      "id": "smooth-sentences",
+      "title": "Smooth sentences",
+      "subtitle": "Build an even rhythm",
+      "keys": [],
+      "items": ["practice", "slowly", "and", "accuracy", "will", "bring", "natural", "speed"]
+    }
+  ]
+}

@@ -1,91 +1,79 @@
-import type { KeyDefinition, Lesson, LogicalLayout } from './types'
+import type {
+  Finger,
+  FormFactor,
+  KeyboardKind,
+  KeyboardLanguage,
+  KeyboardPreset,
+  KeyboardPresetId,
+  Lesson,
+  PhysicalStandard,
+} from './types'
 
-export const rows: KeyDefinition[][] = [
-  [
-    { code: 'Backquote', us: '`', it: '\\', finger: 'LP' },
-    { code: 'Digit1', us: '1', it: '1', finger: 'LP' },
-    { code: 'Digit2', us: '2', it: '2', finger: 'LR' },
-    { code: 'Digit3', us: '3', it: '3', finger: 'LM' },
-    { code: 'Digit4', us: '4', it: '4', finger: 'LI' },
-    { code: 'Digit5', us: '5', it: '5', finger: 'LI' },
-    { code: 'Digit6', us: '6', it: '6', finger: 'RI' },
-    { code: 'Digit7', us: '7', it: '7', finger: 'RI' },
-    { code: 'Digit8', us: '8', it: '8', finger: 'RM' },
-    { code: 'Digit9', us: '9', it: '9', finger: 'RR' },
-    { code: 'Digit0', us: '0', it: '0', finger: 'RP' },
-    { code: 'Minus', us: '-', it: "'", finger: 'RP' },
-    { code: 'Equal', us: '=', it: "'", finger: 'RP' },
-  ],
-  [
-    { code: 'KeyQ', us: 'q', it: 'q', finger: 'LP' },
-    { code: 'KeyW', us: 'w', it: 'w', finger: 'LR' },
-    { code: 'KeyE', us: 'e', it: 'e', finger: 'LM' },
-    { code: 'KeyR', us: 'r', it: 'r', finger: 'LI' },
-    { code: 'KeyT', us: 't', it: 't', finger: 'LI' },
-    { code: 'KeyY', us: 'y', it: 'y', finger: 'RI' },
-    { code: 'KeyU', us: 'u', it: 'u', finger: 'RI' },
-    { code: 'KeyI', us: 'i', it: 'i', finger: 'RM' },
-    { code: 'KeyO', us: 'o', it: 'o', finger: 'RR' },
-    { code: 'KeyP', us: 'p', it: 'p', finger: 'RP' },
-    { code: 'BracketLeft', us: '[', it: 'e', finger: 'RP' },
-    { code: 'BracketRight', us: ']', it: '+', finger: 'RP' },
-  ],
-  [
-    { code: 'KeyA', us: 'a', it: 'a', finger: 'LP' },
-    { code: 'KeyS', us: 's', it: 's', finger: 'LR' },
-    { code: 'KeyD', us: 'd', it: 'd', finger: 'LM' },
-    { code: 'KeyF', us: 'f', it: 'f', finger: 'LI', home: true },
-    { code: 'KeyG', us: 'g', it: 'g', finger: 'LI' },
-    { code: 'KeyH', us: 'h', it: 'h', finger: 'RI' },
-    { code: 'KeyJ', us: 'j', it: 'j', finger: 'RI', home: true },
-    { code: 'KeyK', us: 'k', it: 'k', finger: 'RM' },
-    { code: 'KeyL', us: 'l', it: 'l', finger: 'RR' },
-    { code: 'Semicolon', us: ';', it: 'o', finger: 'RP' },
-    { code: 'Quote', us: "'", it: 'a', finger: 'RP' },
-  ],
-  [
-    { code: 'KeyZ', us: 'z', it: 'z', finger: 'LP' },
-    { code: 'KeyX', us: 'x', it: 'x', finger: 'LR' },
-    { code: 'KeyC', us: 'c', it: 'c', finger: 'LM' },
-    { code: 'KeyV', us: 'v', it: 'v', finger: 'LI' },
-    { code: 'KeyB', us: 'b', it: 'b', finger: 'LI' },
-    { code: 'KeyN', us: 'n', it: 'n', finger: 'RI' },
-    { code: 'KeyM', us: 'm', it: 'm', finger: 'RI' },
-    { code: 'Comma', us: ',', it: ',', finger: 'RM' },
-    { code: 'Period', us: '.', it: '.', finger: 'RR' },
-    { code: 'Slash', us: '/', it: '-', finger: 'RP' },
-  ],
+export const keyboardPresets: KeyboardPreset[] = [
+  {
+    id: 'full',
+    label: 'Full',
+    description: 'Full typing layout with navigation and arrow keys, without a number pad.',
+    formFactor: 'full',
+  },
+  {
+    id: 'compact',
+    label: 'Compact',
+    description: 'Compact typing layout with a reduced navigation cluster and arrow keys.',
+    formFactor: 'compact',
+  },
 ]
 
-export const lessons: Lesson[] = [
-  { id: 'fj', course: 'foundations', title: 'Find your anchors', subtitle: 'Index fingers - F and J', text: 'fff jjj fjf jfj ff jj fj jf', newKeys: ['f', 'j'], supported: ['standard', 'sofle'] },
-  { id: 'home-index', course: 'foundations', title: 'Home-row index', subtitle: 'Add G and H', text: 'fgf jhj fghj hjgf fjgh hjgf', newKeys: ['g', 'h'], supported: ['standard', 'sofle'] },
-  { id: 'home-middle', course: 'foundations', title: 'Middle fingers', subtitle: 'Add D and K', text: 'ddd kkk dkd kdk dad jak fad', newKeys: ['d', 'k'], supported: ['standard', 'sofle'] },
-  { id: 'home-ring', course: 'foundations', title: 'Ring fingers', subtitle: 'Add S and L', text: 'sss lll sls lsl flask salad', newKeys: ['s', 'l'], supported: ['standard', 'sofle'] },
-  { id: 'home-pinky', course: 'foundations', title: 'Complete home row', subtitle: 'Add A and semicolon', text: 'aaa ;;; asdf jkl; all fall ask', newKeys: ['a', ';'], supported: ['standard', 'sofle'] },
-  { id: 'top-row', course: 'foundations', title: 'Reach upward', subtitle: 'Top-row letters', text: 'type quiet power were your tree', newKeys: ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'], supported: ['standard', 'sofle'] },
-  { id: 'bottom-row', course: 'foundations', title: 'Reach downward', subtitle: 'Bottom-row letters', text: 'zinc cave mix brave numb cozy', newKeys: ['z', 'x', 'c', 'v', 'b', 'n', 'm'], supported: ['standard', 'sofle'] },
-  { id: 'english-1', course: 'english', title: 'Common English', subtitle: 'Short, useful words', text: 'the quick brown fox jumps over the lazy dog', newKeys: [], supported: ['standard', 'sofle'] },
-  { id: 'english-2', course: 'english', title: 'Smooth sentences', subtitle: 'Build an even rhythm', text: 'practice slowly and accuracy will bring natural speed', newKeys: [], supported: ['standard', 'sofle'] },
-  { id: 'italian-1', course: 'italian', title: 'Parole italiane', subtitle: 'Ritmo e alternanza', text: 'la pratica calma porta precisione e velocita', newKeys: [], supported: ['standard', 'sofle'] },
-  { id: 'italian-2', course: 'italian', title: 'Frasi italiane', subtitle: 'Accenti sulla tastiera italiana', text: 'perche e piu facile cosi', newKeys: ['e', 'i', 'o', 'a'], supported: ['standard'] },
-  { id: 'numbers', course: 'code', title: 'Numbers', subtitle: 'Keep the home row nearby', text: '123 456 789 10 2026 404', newKeys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'], supported: ['standard'] },
-  { id: 'punctuation', course: 'code', title: 'Punctuation', subtitle: 'Precision before speed', text: 'one, two. three; four: five!', newKeys: [',', '.', ';', ':', '!'], supported: ['standard'] },
-  { id: 'code-1', course: 'code', title: 'Code foundations', subtitle: 'Names and operators', text: 'const total = price + tax;', newKeys: ['=', '+', ';'], supported: ['standard'] },
-  { id: 'code-2', course: 'code', title: 'Brackets and calls', subtitle: 'Small TypeScript fragments', text: 'function add(a, b) { return a + b; }', newKeys: ['(', ')', '{', '}'], supported: ['standard'] },
-]
+export const normalizeKeyboardPreset = (kind: KeyboardKind): KeyboardPresetId =>
+  kind === 'compact' ? 'compact' : 'full'
 
-export const getKey = (char: string, layout: LogicalLayout) =>
-  rows.flat().find(key => key[layout].toLocaleLowerCase() === char.toLocaleLowerCase())
+export const getKeyboardPreset = (kind: KeyboardKind) =>
+  keyboardPresets.find(preset => preset.id === normalizeKeyboardPreset(kind)) ?? keyboardPresets[0]
 
-export const fingerNames: Record<string, string> = {
+// Lesson availability is no longer tied to conventional keyboard sizes.
+export const supportsKeyboard = (_lesson: Lesson, _kind: KeyboardKind) => true
+
+export const standardForLanguage = (language: KeyboardLanguage): PhysicalStandard =>
+  language === 'us' ? 'ansi' : 'iso'
+
+export async function detectKeyboardPreset(): Promise<{
+  formFactor: FormFactor
+  standard: PhysicalStandard
+  language: KeyboardLanguage
+  available: boolean
+}> {
+  const browserLanguage = typeof navigator !== 'undefined' ? navigator.language.toLowerCase() : ''
+  const language: KeyboardLanguage = browserLanguage.startsWith('it') ? 'it' : browserLanguage === 'en-gb' ? 'uk' : 'us'
+  const keyboardApi = typeof navigator !== 'undefined'
+    ? (navigator as Navigator & { keyboard?: { getLayoutMap?: () => Promise<Map<string, string>> } }).keyboard
+    : undefined
+  if (!keyboardApi?.getLayoutMap) {
+    return { formFactor: 'full', standard: standardForLanguage(language), language, available: false }
+  }
+
+  try {
+    const layoutMap = await keyboardApi.getLayoutMap()
+    const codes = new Set(layoutMap.keys())
+    return {
+      formFactor: codes.has('Numpad0') ? 'full' : 'compact',
+      standard: codes.has('IntlBackslash') ? 'iso' : 'ansi',
+      language,
+      available: true,
+    }
+  } catch {
+    return { formFactor: 'full', standard: standardForLanguage(language), language, available: false }
+  }
+}
+
+export const fingerNames: Record<Finger, string> = {
   LP: 'Left pinky',
   LR: 'Left ring',
   LM: 'Left middle',
   LI: 'Left index',
+  LTH: 'Left thumb',
+  RTH: 'Right thumb',
   RI: 'Right index',
   RM: 'Right middle',
   RR: 'Right ring',
   RP: 'Right pinky',
-  TH: 'Thumb',
 }

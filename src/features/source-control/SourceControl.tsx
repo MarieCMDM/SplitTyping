@@ -1,10 +1,10 @@
-import { lessons } from '../../domain/data'
 import type { Attempt, Lesson, Progress } from '../../domain/types'
 import { lessonFileName, lessonPath } from '../../app/helpers'
 import type { DocId } from '../../app/types'
 
 interface Props {
   activeLesson: Lesson | null
+  lessons: Lesson[]
   progress: Progress
   commitMessage: string
   onCommit: () => void
@@ -12,7 +12,7 @@ interface Props {
   onOpenDoc: (id: DocId) => void
 }
 
-export default function SourceControl({ activeLesson, progress, commitMessage, onCommit, onCommitMessage, onOpenDoc }: Props) {
+export default function SourceControl({ activeLesson, lessons, progress, commitMessage, onCommit, onCommitMessage, onOpenDoc }: Props) {
   const commits = [...progress.attempts].reverse()
   const changes = activeLesson
     ? [{ id: activeLesson.id, name: lessonFileName(activeLesson), path: lessonPath(activeLesson), status: 'M' }]
@@ -22,7 +22,10 @@ export default function SourceControl({ activeLesson, progress, commitMessage, o
       { id: 'settings', name: 'settings.json', path: 'SplitTyping/.vscode', status: 'U' },
     ]
   const history = commits.length
-    ? commits.map(attempt => ({ hash: gitHash(attempt), title: lessonFileName(lessons.find(lesson => lesson.id === attempt.lessonId) ?? lessons[0]), detail: `${attempt.accuracy}% accuracy / ${attempt.wpm} wpm` }))
+    ? commits.map(attempt => {
+      const lesson = lessons.find(item => item.id === attempt.lessonId)
+      return { hash: gitHash(attempt), title: lesson ? lessonFileName(lesson) : attempt.lessonId, detail: `${attempt.accuracy}% accuracy / ${attempt.wpm} wpm` }
+    })
     : [
       { hash: 'a8f1b32', title: 'Fix keyboard navigation and lesson flow', detail: 'SplitTyping' },
       { hash: 'c4e19a0', title: 'Refine source control workspace styling', detail: 'SplitTyping' },
@@ -44,7 +47,7 @@ export default function SourceControl({ activeLesson, progress, commitMessage, o
       </section>
       <section className="git-section git-history">
         <div className="git-section-title"><span><span className="codicon codicon-chevron-down" /> COMMITS</span><b>{commits.length || history.length}</b></div>
-        {commits.length ? commits.map(attempt => <div className="git-commit" key={`${attempt.date}-${attempt.lessonId}`}><span className="git-node" /><div><strong>{gitHash(attempt)}</strong> <span>{lessonFileName(lessons.find(lesson => lesson.id === attempt.lessonId) ?? lessons[0])}</span><small>{attempt.accuracy}% accuracy · {attempt.wpm} wpm</small></div></div>) : <p className="git-empty">No commits yet</p>}
+        {commits.length ? commits.map(attempt => { const lesson = lessons.find(item => item.id === attempt.lessonId); return <div className="git-commit" key={`${attempt.date}-${attempt.lessonId}`}><span className="git-node" /><div><strong>{gitHash(attempt)}</strong> <span>{lesson ? lessonFileName(lesson) : attempt.lessonId}</span><small>{attempt.accuracy}% accuracy · {attempt.wpm} wpm</small></div></div> }) : <p className="git-empty">No commits yet</p>}
       </section>
       <section className="git-section git-branches"><div className="git-section-title"><span><span className="codicon codicon-chevron-down" /> BRANCHES</span><b>1</b></div><div className="git-branch"><span className="codicon codicon-git-branch" /> main <span className="git-branch-badge">main</span></div></section>
     </div>

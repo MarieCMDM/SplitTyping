@@ -782,9 +782,26 @@ button:focus-visible {
 }
 
 .panel-hint {
+  display: grid;
+  gap: 4px;
   padding: 10px 12px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.03);
+}
+
+.technique-note {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.tree-loading {
+  padding: 5px 10px 5px 52px;
+  color: var(--soft);
+  font-size: 11px;
+}
+
+.tree-error {
+  color: var(--bad);
 }
 
 .terminal-panel {
@@ -810,26 +827,142 @@ button:focus-visible {
   gap: 6px;
 }
 
+.keyboard-coach {
+  display: grid;
+  grid-template-columns: auto max-content auto;
+  align-items: center;
+  justify-content: safe center;
+  gap: 12px;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.keyboard-coach-hands-only {
+  grid-template-columns: repeat(2, auto);
+}
+
+.hand-hint {
+  width: 68px;
+  color: var(--soft);
+  text-align: center;
+  font-size: 10px;
+  flex: 0 0 auto;
+}
+
+.hand-hint svg {
+  display: block;
+  width: 68px;
+  height: 86px;
+  overflow: visible;
+}
+
+.hand-palm {
+  fill: var(--bg-2);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.hand-finger {
+  fill: var(--bg-4);
+  stroke: var(--line);
+  stroke-width: 2;
+  transition: fill 120ms ease, stroke 120ms ease, filter 120ms ease;
+}
+
+.hand-finger.active {
+  fill: var(--accent);
+  stroke: var(--accent-2);
+  filter: drop-shadow(0 0 5px rgba(198, 160, 246, .55));
+}
+
 .keyboard.standard {
   max-width: 100%;
 }
 
 .key-row {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
 }
 
-.standard .row-1 {
-  padding-left: 18px;
+.function-row {
+  justify-content: flex-start;
+  gap: 5px;
+  margin-bottom: 7px;
 }
 
-.standard .row-2 {
-  padding-left: 38px;
+.function-row .key {
+  height: 27px;
+  font-size: 9px;
 }
 
-.standard .row-3 {
-  padding-left: 60px;
+.keyboard-body {
+  display: flex;
+  align-items: flex-start;
+  width: max-content;
+  gap: 10px;
+}
+
+@media (max-width: 1280px) {
+  .keyboard-coach {
+    grid-template-columns: repeat(2, auto);
+  }
+
+  .keyboard-coach .keyboard {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .keyboard-coach .hand-left {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .keyboard-coach .hand-right {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .keyboard-coach-hands-only .hand-hint {
+    grid-row: 1;
+  }
+}
+
+.main-keyboard {
+  display: grid;
+  gap: 6px;
+  min-width: max-content;
+}
+
+.main-keyboard .key-row { padding-left: 0; }
+
+.keyboard-side {
+  display: grid;
+  gap: 6px;
+  min-width: max-content;
+}
+
+.side-nav-row {
+  gap: 5px;
+}
+
+.arrow-cluster {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.arrow-up {
+  display: flex;
+  justify-content: center;
+}
+
+.nav-spacer {
+  width: 3rem;
+  height: 40px;
+  visibility: hidden;
 }
 
 .key {
@@ -846,6 +979,28 @@ button:focus-visible {
   font-size: 12px;
 }
 
+.key-main { line-height: 1; }
+.key-secondary {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  color: var(--soft);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.key-tertiary {
+  position: absolute;
+  right: 5px;
+  bottom: 4px;
+  color: #90a8d8;
+  font-size: 8px;
+  line-height: 1;
+}
+
+.key.active .key-secondary { color: rgba(8, 16, 24, 0.65); }
+.key.active .key-tertiary { color: rgba(8, 16, 24, 0.65); }
+
 .key span {
   text-transform: lowercase;
 }
@@ -859,22 +1014,84 @@ button:focus-visible {
   background: #5b6790;
 }
 
-.key.active {
+.key:not(.keyboard-key).active {
   color: #081018;
   background: linear-gradient(180deg, #7ddfff, #7d8bff);
   border-color: rgba(124, 140, 255, 0.5);
   transform: translateY(-2px);
 }
 
-.key.wrong {
+.key:not(.keyboard-key).wrong {
   color: #fff;
   background: linear-gradient(180deg, #ff9e98, #ff7b7b);
   border-color: rgba(255, 118, 118, 0.5);
 }
 
-.space-row .key {
-  width: 320px;
+.modifier-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
 }
+
+.keyboard-iso .home-row {
+  position: relative;
+  padding-right: calc(3rem + 6px);
+}
+
+.keyboard-iso .iso-enter-top-space {
+  width: 4.5rem;
+  flex: 0 0 4.5rem;
+}
+
+.keyboard-iso .iso-enter {
+  position: absolute;
+  top: -42px;
+  right: 0;
+  height: 78px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 33.333% 100%, 33.333% 50%, 0 50%);
+  z-index: 2;
+}
+
+.keyboard-iso .iso-enter .key-main {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  transform: translateY(-50%);
+}
+
+.keyboard-compact .key-row,
+.keyboard-compact .modifier-row,
+.keyboard-laptop .key-row,
+.keyboard-laptop .modifier-row {
+  gap: 4px;
+}
+
+.keyboard-compact .key,
+.keyboard-laptop .key {
+  --key-w: 2.55;
+  height: 36px;
+}
+
+.keyboard-compact .function-row .key,
+.keyboard-laptop .function-row .key { height: 25px; }
+
+.keyboard-compact .keyboard-side,
+.keyboard-laptop .keyboard-side { margin-left: -8px; }
+
+.keyboard-laptop .main-keyboard .key-row:nth-child(2) { padding-left: 17px; }
+.keyboard-laptop .main-keyboard .key-row:nth-child(3) { padding-left: 23px; }
+
+.keyboard-compact .arrow-cluster {
+  grid-template-columns: repeat(3, 2.55rem);
+  grid-template-rows: 18px 18px;
+  gap: 4px;
+}
+
+.keyboard-compact .arrow-cluster .nav-spacer { display: none; }
+.keyboard-compact .arrow-up { grid-column: 2; grid-row: 1; }
+.keyboard-compact .arrow-up .key,
+.keyboard-compact .arrow-bottom .key { height: 18px; }
+.keyboard-compact .arrow-bottom { grid-column: 1 / span 3; grid-row: 2; }
 
 .keyboard.sofle {
   display: flex;
@@ -906,6 +1123,88 @@ button:focus-visible {
 
 .right .thumb-row {
   justify-content: flex-start;
+}
+
+.keyboard-coordinate {
+  width: min(100%, 1040px);
+  min-width: 620px;
+  margin-inline: auto;
+}
+
+.keyboard-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 290px;
+  overflow: visible;
+}
+
+.keyboard-key {
+  color: #ccd6f7;
+}
+
+.keyboard-key .key-cap {
+  fill: #151b2e;
+  stroke: #35405f;
+  stroke-width: 1.2;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .45));
+  transition: fill 120ms ease, stroke 120ms ease, filter 120ms ease;
+}
+
+.keyboard-key .key-main,
+.keyboard-key .key-secondary,
+.keyboard-key .key-tertiary {
+  fill: currentColor;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  pointer-events: none;
+  text-transform: lowercase;
+}
+
+.keyboard-key .key-main { font-size: 11px; }
+.keyboard-key .key-secondary,
+.keyboard-key .key-tertiary {
+  color: var(--soft);
+  font-size: 8px;
+  text-anchor: end;
+}
+
+.keyboard-key .key-tertiary { color: #90a8d8; }
+.keyboard-key .key-home-marker {
+  stroke: #5b6790;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.keyboard-key.active {
+  color: #081018;
+}
+
+.keyboard-key.active .key-cap {
+  fill: #7ddfff;
+  stroke: #7d8bff;
+  filter: drop-shadow(0 0 5px rgba(125, 139, 255, .58));
+}
+
+.keyboard-key.active .key-secondary,
+.keyboard-key.active .key-tertiary { color: rgba(8, 16, 24, .65); }
+
+.keyboard-key.wrong {
+  color: #fff;
+}
+
+.keyboard-key.wrong .key-cap {
+  fill: #ff7b7b;
+  stroke: #ff9e98;
+}
+
+.keyboard-empty {
+  min-width: 420px;
+  padding: 24px;
+  border: 1px dashed var(--line);
+  color: var(--bad);
+  text-align: center;
 }
 
 .status-bar {
@@ -1043,6 +1342,19 @@ body { background: var(--bg-3); }
 .settings-control-options { display: flex; gap: 4px; align-items: start; }
 .settings-control-options button { padding: 5px 9px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg-2); color: var(--muted); }
 .settings-control-options button.active { background: var(--bg-4); border-color: var(--accent); color: var(--text); }
+.settings-detection { align-items: center; }
+.settings-detect-button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg-2); color: var(--accent-strong); }
+.settings-detect-button:hover { border-color: var(--accent); background: var(--bg-4); color: var(--text); }
+.keyboard-standard-help { margin: 0; padding: 13px 0 16px; border-bottom: 1px solid var(--line-soft); }
+.keyboard-standard-help summary { width: fit-content; cursor: pointer; color: var(--accent-strong); font-size: 12px; }
+.keyboard-standard-help summary:hover { color: var(--text); }
+.keyboard-standard-help-content { margin-top: 13px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg-2); color: var(--soft); font-size: 12px; line-height: 1.55; }
+.keyboard-standard-help-content p { margin: 0 0 12px; }
+.keyboard-standard-help-content p:last-child { margin: 12px 0 0; }
+.keyboard-standard-comparison { width: 100%; border-collapse: collapse; }
+.keyboard-standard-comparison th, .keyboard-standard-comparison td { padding: 7px 9px; border: 1px solid var(--line); text-align: left; font-weight: 400; }
+.keyboard-standard-comparison thead th { color: var(--text); background: var(--bg-4); font-weight: 600; }
+.keyboard-standard-comparison tbody th { color: var(--text); }
 .reset-link { margin-top: 20px; border: 0; background: transparent; color: var(--bad); }
 
 /* Single-row VS Code title bar and editor path */
@@ -2258,4 +2570,15 @@ button:focus-visible {
 
 .menu-bar .nav-arrows button:active {
   background: rgba(198, 160, 246, 0.28);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

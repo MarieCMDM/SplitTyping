@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "id": "foundations",
+  "title": "Foundations",
+  "languages": ["us", "uk", "it"],
+  "format": "java",
+  "lessons": [
+    {
+      "id": "fj-space",
+      "title": "Find your anchors",
+      "subtitle": "Index fingers — F and J",
+      "keys": ["f", "j", " "],
+      "items": ["fff", "jjj", "fjf", "jfj", "ff", "jj", "fj", "jf"],
+      "hint": "Return both index fingers to F and J after pressing Space."
+    },
+    {
+      "id": "home-index",
+      "title": "Home-row index",
+      "subtitle": "Add G and H",
+      "keys": ["g", "h"],
+      "items": ["fgf", "jhj", "fghj", "hjgf", "fjgh", "hjgf"],
+      "hint": "Reach with the index finger, then return to F or J."
+    },
+    {
+      "id": "home-middle",
+      "title": "Middle fingers",
+      "subtitle": "Add D and K",
+      "keys": ["d", "k"],
+      "items": ["ddd", "kkk", "dkd", "kdk", "dad", "jak", "fad"]
+    },
+    {
+      "id": "home-ring",
+      "title": "Ring fingers",
+      "subtitle": "Add S and L",
+      "keys": ["s", "l"],
+      "items": ["sss", "lll", "sls", "lsl", "flask", "salad"]
+    },
+    {
+      "id": "home-pinky",
+      "title": "Complete home row",
+      "subtitle": "Add A and semicolon",
+      "keys": ["a", ";"],
+      "items": ["aaa", ";;;", "asdf", "jkl;", "all", "fall", "ask"]
+    },
+    {
+      "id": "top-row",
+      "title": "Reach upward",
+      "subtitle": "Top-row letters",
+      "keys": ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+      "items": ["type", "quiet", "power", "were", "your", "tree"],
+      "hint": "Keep your wrists quiet and return each finger to the home row."
+    },
+    {
+      "id": "bottom-row",
+      "title": "Reach downward",
+      "subtitle": "Bottom-row letters",
+      "keys": ["z", "x", "c", "v", "b", "n", "m"],
+      "items": ["zinc", "cave", "mix", "brave", "numb", "cozy"],
+      "hint": "Reach down without moving the whole hand."
+    }
+  ]
+}

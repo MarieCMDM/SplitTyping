@@ -1,6 +1,5 @@
-import { lessons } from '../domain/data'
 import { isUnlocked } from '../domain/engine'
-import type { Attempt, Course, Lesson, Progress } from '../domain/types'
+import type { Attempt, Lesson, Progress } from '../domain/types'
 import type { DocId, SearchResult, WorkspaceLayout } from './types'
 
 export const LAYOUT_KEY = 'keyloom-workspace-layout-v2'
@@ -16,28 +15,21 @@ export function loadWorkspaceLayout(): WorkspaceLayout {
   } catch { return defaultWorkspaceLayout }
 }
 
-export const courseNames: Record<Course, string> = {
-  foundations: 'Foundations',
-  english: 'English',
-  italian: 'Italiano',
-  code: 'Code',
-}
-
 export const initialDoc = (_onboarded: boolean): DocId => 'readme'
 
 export const lessonFileName = (lesson: Lesson) => {
-  const slug = lesson.id.replace(/[^a-z0-9]+/gi, '_')
-  const ext = lesson.course === 'foundations' ? 'java' : lesson.course === 'italian' ? 'md' : 'ts'
+  const slug = lesson.localId.replace(/[^a-z0-9]+/gi, '_')
+  const ext = lesson.format === 'java' ? 'java' : lesson.format === 'markdown' ? 'md' : 'ts'
   return `${slug}.${ext}`
 }
 
 export const lessonPath = (lesson: Lesson) => `src/lessons/${lesson.course}/${lessonFileName(lesson)}`
 export const classNameForLesson = (lesson: Lesson) => lesson.title.replace(/[^a-z0-9]+/gi, '')
 
-export const groupByCourse = (items: Lesson[]) => items.reduce<Record<Course, Lesson[]>>((acc, lesson) => {
+export const groupByCourse = (items: Lesson[]) => items.reduce<Record<string, Lesson[]>>((acc, lesson) => {
   acc[lesson.course] = [...(acc[lesson.course] ?? []), lesson]
   return acc
-}, { foundations: [], english: [], italian: [], code: [] })
+}, {})
 
 export const activeChar = (text: string, index: number) => ({
   before: text.slice(0, index),
@@ -45,14 +37,13 @@ export const activeChar = (text: string, index: number) => ({
   after: text.slice(index + 1),
 })
 
-export const restoredLessonId = (progress: Progress) => progress.activeLessonId && lessons.some(lesson => lesson.id === progress.activeLessonId) ? progress.activeLessonId : null
+export const restoredLessonId = (progress: Progress, lessons: Lesson[]) => progress.activeLessonId && lessons.some(lesson => lesson.id === progress.activeLessonId) ? progress.activeLessonId : null
 
 export function canOpenLesson(lesson: Lesson, eligibleLessons: Lesson[], attempts: Attempt[]) {
-  return canOpenLessonWithKeyboard(lesson, eligibleLessons, attempts, 'standard')
+  return canOpenLessonWithKeyboard(lesson, eligibleLessons, attempts, 'full')
 }
 
-export function canOpenLessonWithKeyboard(lesson: Lesson, eligibleLessons: Lesson[], attempts: Attempt[], keyboard: Progress['settings']['keyboard']) {
-  if (!lesson.supported.length) return false
+export function canOpenLessonWithKeyboard(lesson: Lesson, eligibleLessons: Lesson[], attempts: Attempt[], keyboard: Progress['settings']['formFactor']) {
   const index = eligibleLessons.findIndex(item => item.id === lesson.id)
   if (index < 0) return false
   return isUnlocked(eligibleLessons, attempts, index, keyboard) || index === 0
@@ -62,7 +53,7 @@ export function buildSearchResults(items: Lesson[]): SearchResult[] {
   return [
     { id: 'readme', label: 'README.md', path: 'SplitTyping/README.md', preview: 'local typing workspace' },
     { id: 'progress', label: 'progress.json', path: 'SplitTyping/progress.json', preview: 'attempts, accuracy, weak keys' },
-    { id: 'settings', label: 'settings.json', path: 'SplitTyping/.vscode/settings.json', preview: 'keyboard, layout, sound, showKeyboard' },
+    { id: 'settings', label: 'settings.json', path: 'SplitTyping/.vscode/settings.json', preview: 'form factor, standard, language, feedback' },
     { id: 'settings-ui', label: 'Settings', path: 'SplitTyping/Settings', preview: 'Typing Trainer preferences' },
     ...items.map(lesson => ({ id: lesson.id, label: lessonFileName(lesson), path: lessonPath(lesson), preview: `${lesson.title} - ${lesson.text}` })),
   ]

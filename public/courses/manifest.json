@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "courses": [
+    "foundations.json",
+    "english.json",
+    "italian.json",
+    "code.json"
+  ]
+}

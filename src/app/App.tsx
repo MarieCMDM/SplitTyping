@@ -4,14 +4,16 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from
 import readmeSource from '../../README.md?raw'
 import Keyboard from '../components/Keyboard'
 import ReadmePreview from '../components/ReadmePreview'
-import { lessons } from '../domain/data'
+import { loadCourseCatalog } from '../domain/courseCatalog'
+import { detectKeyboardPreset, fingerNames, getKeyboardPreset, keyboardPresets } from '../domain/data'
+import { getKey, loadKeyboardCatalog, missingLessonCharacters, resolveKeyboard } from '../domain/keyboardCatalog'
 import { calculateAccuracy, calculateWpm, isUnlocked, lessonPassed, weakKeys } from '../domain/engine'
 import { commitFileName, downloadProgressExport } from '../domain/export'
 import { clearProgress, loadProgress, saveProgress } from '../domain/storage'
-import type { Attempt, Course, Lesson, Progress } from '../domain/types'
+import type { Attempt, CourseCatalog, KeyboardCatalog, Lesson, Progress, ResolvedKeyboard } from '../domain/types'
 import SourceControl from '../features/source-control/SourceControl'
 import IdeFrame from '../components/IdeFrame'
-import { LAYOUT_KEY, activeChar, buildSearchResults, canOpenLesson, canOpenLessonWithKeyboard, classNameForLesson, courseNames, defaultWorkspaceLayout, fileExtension, getBrowserName, groupByCourse, initialDoc, lessonFileName, lessonPath, loadWorkspaceLayout, restoredLessonId } from './helpers'
+import { LAYOUT_KEY, activeChar, buildSearchResults, canOpenLessonWithKeyboard, classNameForLesson, defaultWorkspaceLayout, fileExtension, getBrowserName, groupByCourse, initialDoc, lessonFileName, lessonPath, loadWorkspaceLayout, restoredLessonId } from './helpers'
 import type { ActivityView, DocId, PanelId, SearchResult, WorkspaceLayout } from './types'
 import { isCourseTypingTarget } from './typingFocus'
 
@@ -19,9 +21,18 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const [progress, setProgress] = useState<Progress>(() => loadProgress())
-  const [selectedDoc, setSelectedDoc] = useState<DocId>(() => restoredLessonId(progress) ?? initialDoc(progress.onboarded))
-  const [panel, setPanel] = useState<PanelId>(() => restoredLessonId(progress) ? 'keymap' : (progress.onboarded ? 'terminal' : 'keymap'))
-  const [activeLessonId, setActiveLessonId] = useState<string | null>(() => restoredLessonId(progress))
+  const [catalog, setCatalog] = useState<CourseCatalog>({ courses: [], lessons: [], errors: [] })
+  const [keyboardCatalog, setKeyboardCatalog] = useState<KeyboardCatalog>({
+    keyboards: [],
+    languages: [],
+    defaultKeyboardId: '',
+    defaultLanguageId: '',
+    errors: [],
+  })
+  const [courseStatus, setCourseStatus] = useState<'loading' | 'ready'>('loading')
+  const [selectedDoc, setSelectedDoc] = useState<DocId>(() => initialDoc(progress.onboarded))
+  const [panel, setPanel] = useState<PanelId>(() => progress.onboarded ? 'terminal' : 'keymap')
+  const [activeLessonId, setActiveLessonId] = useState<string | null>(null)
   const [typingIndex, setTypingIndex] = useState(0)
   const [typingErrors, setTypingErrors] = useState(0)
   const [wrongKey, setWrongKey] = useState('')
@@ -30,16 +41,48 @@ export default function App() {
   const [finishedAttempt, setFinishedAttempt] = useState<Attempt | null>(null)
   const [recentOutput, setRecentOutput] = useState<string[]>([
     '[info] workspace ready',
-    '[info] open a file in the explorer to begin',
+    '[info] loading course catalog',
   ])
   const [workspaceLayout, setWorkspaceLayout] = useState<WorkspaceLayout>(() => loadWorkspaceLayout())
-  const [openTabs, setOpenTabs] = useState<DocId[]>(() => ['readme', 'overview', ...(restoredLessonId(progress) ? [restoredLessonId(progress)!] : [])])
+  const [openTabs, setOpenTabs] = useState<DocId[]>(() => ['readme', 'overview'])
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem('keyloom-expanded-folders-v1') ?? '') as Record<string, boolean> }
-    catch { return { root: true, vscode: true, src: true, lessons: true, foundations: true, english: true, italian: true, code: true } }
+    catch { return { root: true, vscode: true, src: true, lessons: true } }
   })
   const [activityView, setActivityView] = useState<ActivityView>('explorer')
   const [commitMessage, setCommitMessage] = useState('')
+  const lessons = catalog.lessons
+
+  useEffect(() => {
+    let cancelled = false
+    void loadKeyboardCatalog().then(async keyboards => {
+      const result = await loadCourseCatalog(fetch, import.meta.env.BASE_URL, keyboards.languages.map(language => language.id))
+      if (cancelled) return
+      setKeyboardCatalog(keyboards)
+      setCatalog(result)
+      setCourseStatus('ready')
+      result.errors.forEach(error => console.error(`[SplitTyping] ${error}`))
+      setRecentOutput([
+        `[info] loaded ${keyboards.keyboards.length} keyboard model${keyboards.keyboards.length === 1 ? '' : 's'}`,
+        `[info] loaded ${result.courses.length} course${result.courses.length === 1 ? '' : 's'}`,
+        ...keyboards.errors.map(error => `[error] ${error}`),
+        ...result.errors.map(error => `[error] ${error}`),
+        ...(result.lessons.length ? ['[info] open a file in the explorer to begin'] : ['[error] no valid courses are available']),
+      ])
+      setExpandedFolders(current => ({
+        ...current,
+        ...Object.fromEntries(result.courses.map(course => [course.id, current[course.id] ?? true])),
+      }))
+      const restored = restoredLessonId(progress, result.lessons)
+      if (restored) {
+        setActiveLessonId(restored)
+        setSelectedDoc(restored)
+        setOpenTabs(tabs => tabs.includes(restored) ? tabs : [...tabs, restored])
+        setPanel('keymap')
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     saveProgress(progress)
@@ -54,15 +97,38 @@ export default function App() {
   }, [expandedFolders])
 
   const eligibleLessons = useMemo(() => {
-    return lessons.filter(lesson =>
-      lesson.supported.includes(progress.settings.keyboard) &&
-      !(lesson.id === 'italian-2' && progress.settings.layout !== 'it')
-    )
-  }, [progress.settings.keyboard, progress.settings.layout])
+    return lessons.filter(lesson => lesson.languages.includes(progress.settings.language))
+  }, [lessons, progress.settings.language])
+
+  const resolvedKeyboard = useMemo(
+    () => resolveKeyboard(keyboardCatalog, progress.settings),
+    [keyboardCatalog, progress.settings]
+  )
+
+  useEffect(() => {
+    if (!keyboardCatalog.keyboards.length || !keyboardCatalog.languages.length) return
+    const resolved = resolveKeyboard(keyboardCatalog, progress.settings)
+    if (!resolved) return
+    if (
+      resolved.model.id !== progress.settings.keyboardId
+      || resolved.variant.id !== progress.settings.keyboardVariantId
+      || resolved.language.id !== progress.settings.language
+    ) {
+      setProgress(current => ({
+        ...current,
+        settings: {
+          ...current.settings,
+          keyboardId: resolved.model.id,
+          keyboardVariantId: resolved.variant.id,
+          language: resolved.language.id,
+        },
+      }))
+    }
+  }, [keyboardCatalog, progress.settings])
 
   const activeLesson = useMemo(
     () => lessons.find(lesson => lesson.id === activeLessonId) ?? null,
-    [activeLessonId]
+    [activeLessonId, lessons]
   )
 
   const activeLessonIndex = useMemo(
@@ -71,10 +137,10 @@ export default function App() {
   )
 
   const nextReadmeLesson = useMemo(
-    () => eligibleLessons.find((lesson, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.keyboard) && !lessonPassed(progress.attempts, lesson.id))
-      ?? eligibleLessons.find((_, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.keyboard))
+    () => eligibleLessons.find((lesson, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.formFactor) && !lessonPassed(progress.attempts, lesson.id))
+      ?? eligibleLessons.find((_, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.formFactor))
       ?? eligibleLessons[0],
-    [eligibleLessons, progress.attempts, progress.settings.keyboard]
+    [eligibleLessons, progress.attempts, progress.settings.formFactor]
   )
 
   const openDoc = (doc: DocId) => {
@@ -113,7 +179,7 @@ export default function App() {
       return
     }
     const lesson = lessons.find(item => item.id === doc) ?? null
-    if (!lesson || !canOpenLessonWithKeyboard(lesson, eligibleLessons, progress.attempts, progress.settings.keyboard)) return
+    if (!lesson || !canOpenLessonWithKeyboard(lesson, eligibleLessons, progress.attempts, progress.settings.formFactor)) return
     setSelectedDoc(doc)
     setFinishedAttempt(null)
     setActiveLessonId(lesson.id)
@@ -126,8 +192,8 @@ export default function App() {
   const openNextLesson = () => {
     setActivityView('debug')
     const next = activeLesson
-      ?? eligibleLessons.find((lesson, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.keyboard) && !lessonPassed(progress.attempts, lesson.id))
-      ?? eligibleLessons.find((lesson, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.keyboard))
+      ?? eligibleLessons.find((lesson, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.formFactor) && !lessonPassed(progress.attempts, lesson.id))
+      ?? eligibleLessons.find((lesson, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.formFactor))
     if (next) openDoc(next.id)
   }
 
@@ -140,7 +206,7 @@ export default function App() {
         openDoc(replacement)
         return
       }
-      const firstLesson = eligibleLessons.find((lesson, index) => canOpenLessonWithKeyboard(lesson, eligibleLessons, progress.attempts, progress.settings.keyboard) && isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.keyboard))
+      const firstLesson = eligibleLessons.find((lesson, index) => canOpenLessonWithKeyboard(lesson, eligibleLessons, progress.attempts, progress.settings.formFactor) && isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.formFactor))
       if (firstLesson) openDoc(firstLesson.id)
       return
     }
@@ -172,6 +238,16 @@ export default function App() {
         [key]: value,
       },
     }))
+  }
+
+  const detectKeyboard = async () => {
+    const detected = await detectKeyboardPreset()
+    updateSetting('keyboardId', 'normal')
+    updateSetting('keyboardVariantId', `${detected.formFactor}-${detected.standard}`)
+    updateSetting('formFactor', detected.formFactor)
+    updateSetting('standard', detected.standard)
+    updateSetting('language', detected.language)
+    setRecentOutput([detected.available ? `keyboard detected: ${getKeyboardPreset(detected.formFactor).label} · ${detected.standard.toUpperCase()} · ${detected.language.toUpperCase()}` : 'keyboard detection is not available in this browser'])
   }
 
   const restartLesson = () => {
@@ -406,7 +482,7 @@ export default function App() {
             onReset: resetAll,
           })
       : selectedDoc === 'settings-ui'
-        ? renderSettingsUi({ progress, onSetting: updateSetting, onOpenJson: () => openDoc('settings'), onReset: resetAll })
+        ? renderSettingsUi({ progress, catalog: keyboardCatalog, onSetting: updateSetting, onOpenJson: () => openDoc('settings'), onReset: resetAll, onDetectKeyboard: detectKeyboard })
         : renderReadmeSourceDoc(readmeSource)
 
   const panelTabs = renderPanelTabs(panel, setPanel)
@@ -422,6 +498,7 @@ export default function App() {
     startedAt,
     finishedAttempt,
     recentOutput,
+    keyboard: resolvedKeyboard,
   })
 
   const status = renderStatus({
@@ -430,18 +507,22 @@ export default function App() {
     progress,
     selectedDoc: currentDoc,
     finishedAttempt,
+    keyboard: resolvedKeyboard,
   })
 
 return (
     <IdeFrame
       workspace="SplitTyping"
       command={currentDoc}
-      explorer={activityView === 'search' ? <SearchView /> : activityView === 'extensions' ? <ExtensionsView /> : activityView === 'source-control' ? <SourceControl activeLesson={activeLesson} progress={progress} commitMessage={commitMessage} onCommit={commitProgress} onCommitMessage={setCommitMessage} onOpenDoc={openDoc} /> : activityView === 'debug' ? renderDebugView({ activeLesson, progress, typingIndex, typingErrors, finishedAttempt, onOpenDoc: openDoc }) : renderExplorer({
+      explorer={activityView === 'search' ? <SearchView /> : activityView === 'extensions' ? <ExtensionsView /> : activityView === 'source-control' ? <SourceControl activeLesson={activeLesson} lessons={lessons} progress={progress} commitMessage={commitMessage} onCommit={commitProgress} onCommitMessage={setCommitMessage} onOpenDoc={openDoc} /> : activityView === 'debug' ? renderDebugView({ activeLesson, progress, typingIndex, typingErrors, finishedAttempt, onOpenDoc: openDoc }) : renderExplorer({
         selectedDoc,
         activeLessonId,
+        courses: catalog.courses,
+        lessons,
+        courseStatus,
         eligibleLessons,
         attempts: progress.attempts,
-        keyboard: progress.settings.keyboard,
+        keyboard: progress.settings.formFactor,
         onOpenDoc: openDoc,
         expandedFolders,
         onToggleFolder: folder => setExpandedFolders(current => ({ ...current, [folder]: !current[folder] })),
@@ -521,6 +602,9 @@ function renderTabs({
 function renderExplorer({
   selectedDoc,
   activeLessonId,
+  courses,
+  lessons,
+  courseStatus,
   eligibleLessons,
   attempts,
   keyboard,
@@ -530,9 +614,12 @@ function renderExplorer({
 }: {
   selectedDoc: DocId
   activeLessonId: string | null
+  courses: CourseCatalog['courses']
+  lessons: Lesson[]
+  courseStatus: 'loading' | 'ready'
   eligibleLessons: Lesson[]
   attempts: Attempt[]
-  keyboard: Progress['settings']['keyboard']
+  keyboard: Progress['settings']['formFactor']
   onOpenDoc: (doc: DocId) => void
   expandedFolders: Record<string, boolean>
   onToggleFolder: (folder: string) => void
@@ -553,10 +640,12 @@ function renderExplorer({
         {expandedFolders.vscode ? <TreeNode label="settings.json" level={2} icon="json" active={selectedDoc === 'settings'} onClick={() => onOpenDoc('settings')} /> : null}
         <TreeNode label="src" level={1} folderKey="src" expanded={expandedFolders.src} onToggle={() => onToggleFolder('src')} />
         {expandedFolders.src ? <TreeNode label="lessons" level={2} folderKey="lessons" expanded={expandedFolders.lessons} onToggle={() => onToggleFolder('lessons')} /> : null}
-        {expandedFolders.src && expandedFolders.lessons ? Object.entries(grouped).map(([course, items]) => (
-          <div key={course} className="tree-group">
-            <TreeNode label={courseNames[course as Course]} level={3} folderKey={course} expanded={expandedFolders[course]} onToggle={() => onToggleFolder(course)} />
-            {expandedFolders[course] ? items.map(lesson => {
+        {expandedFolders.src && expandedFolders.lessons && courseStatus === 'loading' ? <div className="tree-loading">Loading courses…</div> : null}
+        {expandedFolders.src && expandedFolders.lessons && courseStatus === 'ready' && !courses.length ? <div className="tree-loading tree-error">No valid courses</div> : null}
+        {expandedFolders.src && expandedFolders.lessons ? courses.map(course => (
+          <div key={course.id} className="tree-group">
+            <TreeNode label={course.title} level={3} folderKey={course.id} expanded={expandedFolders[course.id]} onToggle={() => onToggleFolder(course.id)} />
+            {expandedFolders[course.id] ? (grouped[course.id] ?? []).map(lesson => {
               const unlocked = canOpenLessonWithKeyboard(lesson, eligibleLessons, attempts, keyboard)
               const passed = lessonPassed(attempts, lesson.id)
               return (
@@ -816,10 +905,14 @@ function renderProgressDoc({
     `  "version": ${progress.version},`,
     `  "onboarded": ${progress.onboarded},`,
     '  "settings": {',
-    `    "keyboard": "${progress.settings.keyboard}",`,
-    `    "layout": "${progress.settings.layout}",`,
+    `    "keyboardId": "${progress.settings.keyboardId}",`,
+    `    "keyboardVariantId": "${progress.settings.keyboardVariantId}",`,
+    `    "formFactor": "${progress.settings.formFactor}",`,
+    `    "standard": "${progress.settings.standard}",`,
+    `    "language": "${progress.settings.language}",`,
     `    "sound": ${progress.settings.sound},`,
-    `    "showKeyboard": ${progress.settings.showKeyboard}`,
+    `    "showKeyboard": ${progress.settings.showKeyboard},`,
+    `    "showFingerHints": ${progress.settings.showFingerHints}`,
     '  },',
     `  "attempts": ${progress.attempts.length},`,
     `  "averageAccuracy": ${average},`,
@@ -852,10 +945,14 @@ function renderSettingsDoc({
 }) {
   const lines = [
     '{',
-    `  "keyboard": "${progress.settings.keyboard}",`,
-    `  "layout": "${progress.settings.layout}",`,
+    `  "keyboardId": "${progress.settings.keyboardId}",`,
+    `  "keyboardVariantId": "${progress.settings.keyboardVariantId}",`,
+    `  "formFactor": "${progress.settings.formFactor}",`,
+    `  "standard": "${progress.settings.standard}",`,
+    `  "language": "${progress.settings.language}",`,
     `  "sound": ${progress.settings.sound},`,
-    `  "showKeyboard": ${progress.settings.showKeyboard}`,
+    `  "showKeyboard": ${progress.settings.showKeyboard},`,
+    `  "showFingerHints": ${progress.settings.showFingerHints}`,
     '}',
   ]
 
@@ -873,15 +970,31 @@ function renderSettingsDoc({
 
 function renderSettingsUi({
   progress,
+  catalog,
   onSetting,
   onOpenJson,
   onReset,
+  onDetectKeyboard,
 }: {
   progress: Progress
+  catalog: KeyboardCatalog
   onSetting: <K extends keyof Progress['settings']>(key: K, value: Progress['settings'][K]) => void
   onOpenJson: () => void
   onReset: () => void
+  onDetectKeyboard: () => void
 }) {
+  const selectedModel = catalog.keyboards.find(model => model.id === progress.settings.keyboardId) ?? catalog.keyboards[0]
+  const customGeometry = Boolean(selectedModel && !selectedModel.configurableStandard)
+  const selectedLanguage = catalog.languages.find(language => language.id === progress.settings.language)
+  const selectModel = (keyboardId: string) => {
+    const model = catalog.keyboards.find(item => item.id === keyboardId)
+    if (!model) return
+    onSetting('keyboardId', model.id)
+    onSetting('keyboardVariantId', model.variants[0].id)
+  }
+  const selectNormalVariant = (formFactor: Progress['settings']['formFactor'], standard: Progress['settings']['standard']) => {
+    onSetting('keyboardVariantId', `${formFactor}-${standard}`)
+  }
   return (
     <section className="settings-editor">
       <div className="settings-toolbar">
@@ -902,10 +1015,37 @@ function renderSettingsUi({
         <div className="settings-content">
           <div className="settings-section-heading">SplitTyping: Typing Trainer</div>
           <p className="settings-description">Configure the keyboard and feedback used during typing practice.</p>
-          <SettingsControl label="Keyboard shape" description="Choose the physical keyboard shown in the keymap." value={progress.settings.keyboard} options={['standard', 'sofle']} onChange={value => onSetting('keyboard', value as Progress['settings']['keyboard'])} />
-          <SettingsControl label="Logical layout" description="Choose the character layout used by lessons." value={progress.settings.layout} options={['us', 'it']} onChange={value => onSetting('layout', value as Progress['settings']['layout'])} />
+          <SettingsControl label="Keyboard model" description="Choose a keyboard definition loaded from the runtime catalog." value={selectedModel?.id ?? ''} options={catalog.keyboards.map(model => model.id)} optionLabels={Object.fromEntries(catalog.keyboards.map(model => [model.id, model.label]))} onChange={selectModel} />
+          <SettingsControl label="Keyboard variant" description={customGeometry ? 'Choose the physical variant supplied by this keyboard model.' : 'The variant follows the form-factor and physical-standard controls.'} value={customGeometry ? progress.settings.keyboardVariantId : `${progress.settings.formFactor}-${progress.settings.standard}`} options={selectedModel?.variants.map(variant => variant.id) ?? []} optionLabels={Object.fromEntries(selectedModel?.variants.map(variant => [variant.id, variant.label]) ?? [])} onChange={value => onSetting('keyboardVariantId', value)} disabled={!customGeometry} />
+          <SettingsControl label="Form factor" description={customGeometry ? 'Not applicable: this keyboard model owns its geometry.' : 'Choose the amount of navigation hardware shown around the typing keys.'} value={progress.settings.formFactor} options={keyboardPresets.map(preset => preset.id)} optionLabels={Object.fromEntries(keyboardPresets.map(preset => [preset.id, preset.label]))} onChange={value => { const formFactor = value as Progress['settings']['formFactor']; onSetting('formFactor', formFactor); selectNormalVariant(formFactor, progress.settings.standard) }} disabled={customGeometry} />
+          <SettingsControl label="Physical standard" description={customGeometry ? 'Not applicable: this keyboard model owns its geometry.' : 'Match the Enter, left Shift, and backslash-key geometry of your keyboard.'} value={progress.settings.standard} options={['ansi', 'iso']} optionLabels={{ ansi: 'ANSI', iso: 'ISO' }} onChange={value => { const standard = value as Progress['settings']['standard']; onSetting('standard', standard); selectNormalVariant(progress.settings.formFactor, standard) }} disabled={customGeometry} />
+          <details className="keyboard-standard-help">
+            <summary>ANSI or ISO? Compare keyboard standards</summary>
+            <div className="keyboard-standard-help-content">
+              <p><strong>ANSI</strong> is the common US physical layout. It has a horizontal rectangular Enter key, a long left Shift key, and the backslash key above Enter.</p>
+              <p><strong>ISO</strong> is common in the United Kingdom, Ireland, Italy, and much of Europe. It has a two-row L-shaped Enter key, a shorter left Shift, and an additional key between left Shift and Z.</p>
+              <table className="keyboard-standard-comparison">
+                <caption className="sr-only">US ANSI and UK ISO character differences</caption>
+                <thead><tr><th>Character</th><th>US ANSI</th><th>UK ISO</th></tr></thead>
+                <tbody>
+                  <tr><th scope="row">Backslash</th><td>Above Enter</td><td>Beside Z</td></tr>
+                  <tr><th scope="row">Right Alt</th><td>Alt</td><td>AltGr</td></tr>
+                  <tr><th scope="row">#</th><td>Shift+3</td><td>Key beside Enter</td></tr>
+                  <tr><th scope="row">£</th><td>Not printed</td><td>Shift+3</td></tr>
+                  <tr><th scope="row">@</th><td>Shift+2</td><td>Shift+'</td></tr>
+                  <tr><th scope="row">"</th><td>Shift+'</td><td>Shift+2</td></tr>
+                  <tr><th scope="row">Key beside 1</th><td>` and ~</td><td>` and ¬</td></tr>
+                </tbody>
+              </table>
+              <p><strong>Italian ISO:</strong> the extra key beside Z carries &lt; and &gt;, the key beside Enter carries ù, and € is typed with AltGr+E. The £ symbol remains on Shift+3.</p>
+            </div>
+          </details>
+          <SettingsControl label="Language" description="Choose the runtime character map printed on the keyboard." value={progress.settings.language} options={catalog.languages.map(language => language.id)} optionLabels={Object.fromEntries(catalog.languages.map(language => [language.id, language.label]))} onChange={value => { const language = catalog.languages.find(item => item.id === value); onSetting('language', value); if (language && !customGeometry) { onSetting('standard', language.recommendedStandard); selectNormalVariant(progress.settings.formFactor, language.recommendedStandard) } }} />
+          {selectedLanguage ? <p className="settings-catalog-note">Loaded from the keyboard catalog: {selectedLanguage.label}.</p> : null}
+          <div className="settings-control settings-detection"><div><strong>Keyboard detection</strong><p>Ask the browser for its detected physical layout when supported.</p></div><button type="button" className="settings-detect-button" onClick={onDetectKeyboard}>Detect keyboard</button></div>
           <SettingsControl label="Sound" description="Play a short sound when the expected key is missed." value={String(progress.settings.sound)} options={['true', 'false']} onChange={value => onSetting('sound', value === 'true')} />
           <SettingsControl label="Keyboard overlay" description="Show the keyboard visualization in the bottom panel." value={String(progress.settings.showKeyboard)} options={['true', 'false']} onChange={value => onSetting('showKeyboard', value === 'true')} />
+          <SettingsControl label="Finger hints" description="Show compact left and right hand diagrams during active lessons." value={String(progress.settings.showFingerHints)} options={['true', 'false']} onChange={value => onSetting('showFingerHints', value === 'true')} />
           <button type="button" className="reset-link" onClick={onReset}>Reset all progress</button>
         </div>
       </div>
@@ -913,11 +1053,11 @@ function renderSettingsUi({
   )
 }
 
-function SettingsControl({ label, description, value, options, onChange }: { label: string; description: string; value: string; options: string[]; onChange: (value: string) => void }) {
+function SettingsControl({ label, description, value, options, optionLabels = {}, onChange, disabled = false }: { label: string; description: string; value: string; options: string[]; optionLabels?: Record<string, string>; onChange: (value: string) => void; disabled?: boolean }) {
   return (
-    <div className="settings-control">
+    <div className={`settings-control ${disabled ? 'settings-control-disabled' : ''}`}>
       <div><strong>{label}</strong><p>{description}</p></div>
-      <div className="settings-control-options">{options.map(option => <button key={option} type="button" className={option === value ? 'active' : ''} onClick={() => onChange(option)}>{option}</button>)}</div>
+      <div className="settings-control-options">{options.map(option => <button key={option} type="button" disabled={disabled} className={option === value ? 'active' : ''} onClick={() => onChange(option)}>{optionLabels[option] ?? option}</button>)}</div>
     </div>
   )
 }
@@ -942,18 +1082,16 @@ function renderLessonDoc({
   onExit: () => void
 }) {
   const { before, current, after } = activeChar(lesson.text, typingIndex)
-  const linePrefix = lesson.course === 'foundations'
+  const linePrefix = lesson.format === 'java'
     ? '  private static final String DRILL = "'
-    : lesson.course === 'english'
-      ? 'export const sample = "'
-      : lesson.course === 'italian'
-        ? 'const sample = "'
-        : 'const snippet = "'
-  const lineSuffix = '";'
+    : lesson.format === 'markdown'
+      ? ''
+      : 'export const sample = "'
+  const lineSuffix = lesson.format === 'markdown' ? '' : '";'
 
-  const lines: ReactNode[] = lesson.course === 'foundations'
+  const lines: ReactNode[] = lesson.format === 'java'
     ? [
-        <CodeLine key="1" kind="keyword" text="package splittyping.lessons.foundations;" />,
+        <CodeLine key="1" kind="keyword" text={`package splittyping.lessons.${lesson.course};`} />,
         <CodeLine key="2" kind="comment" text="" />,
         <CodeLine key="3" kind="declaration" text={`public final class ${classNameForLesson(lesson)} {`} />,
         <CodeLine key="4" kind="code" text="  public static void main(String[] args) {" />,
@@ -961,7 +1099,15 @@ function renderLessonDoc({
         <CodeLine key="6" kind="code" text="  }" />,
         <CodeLine key="7" kind="code" text="}" />,
       ]
-    : [
+    : lesson.format === 'markdown'
+      ? [
+        <CodeLine key="1" kind="declaration" text={`# ${lesson.title}`} />,
+        <CodeLine key="2" kind="comment" text={`> ${lesson.subtitle}`} />,
+        <CodeLine key="3" kind="code" text="" />,
+        <TypingLine key="4" prefix="" before={before} current={current} after={after} suffix="" active={typingIndex < lesson.text.length} wrong={wrongKey} />,
+        <CodeLine key="5" kind="comment" text={`Target: ${lesson.text.length} characters`} />,
+      ]
+      : [
         <CodeLine key="1" kind="comment" text={`// ${lesson.title}`} />,
         <CodeLine key="2" kind="comment" text={`// ${lesson.subtitle}`} />,
         <CodeLine key="3" kind="code" text="" />,
@@ -974,7 +1120,7 @@ function renderLessonDoc({
   return (
     <DocumentFrame
       title={lessonFileName(lesson)}
-      language={lesson.course === 'foundations' ? 'java' : lesson.course === 'italian' ? 'markdown' : 'typescript'}
+      language={lesson.format}
       path={lessonPath(lesson)}
       actions={<EditorActions primary={finishedAttempt ? 'Repeat run' : 'Run lesson'} secondary="Back to README" onPrimary={onRepeat} onSecondary={onExit} />}
       lines={lines}
@@ -995,6 +1141,7 @@ function renderPanel({
   startedAt,
   finishedAttempt,
   recentOutput,
+  keyboard,
 }: {
   panel: PanelId
   activeLesson: Lesson | null
@@ -1006,23 +1153,37 @@ function renderPanel({
   startedAt: number | null
   finishedAttempt: Attempt | null
   recentOutput: string[]
+  keyboard?: ResolvedKeyboard
 }) {
   if (panel === 'keymap') {
+    const target = activeLesson?.text[typingIndex] ?? ''
+    const targetHint = renderTargetHint(target, keyboard)
+    const missingCharacters = activeLesson ? missingLessonCharacters(activeLesson.text, keyboard) : []
     return (
       <div className="panel-body keymap-panel">
         <div className="panel-copy">
           <strong>{activeLesson ? activeLesson.title : 'No lesson open'}</strong>
           <p>{activeLesson ? `Lesson ${activeLessonIndex + 1}` : 'Open a lesson to start typing.'}</p>
         </div>
-        <Keyboard kind={progress.settings.keyboard} layout={progress.settings.layout} target={activeLesson?.text[typingIndex] ?? ''} wrong={wrongKey} />
+        <Keyboard
+          keyboard={keyboard}
+          target={target}
+          wrong={wrongKey}
+          showKeys={progress.settings.showKeyboard}
+          showFingerHints={Boolean(activeLesson && progress.settings.showFingerHints)}
+        />
         <div className="panel-hint">
           {finishedAttempt ? (
             <span>Lesson complete. Repeat the run to record a second pass.</span>
           ) : activeLesson ? (
-            <span>{typingIndex === 0 ? 'Start with the highlighted character.' : `Keep your pace. Mistakes: ${typingErrors}`}</span>
+            <span>{wrongKey ? <>Not <kbd>{wrongKey === ' ' ? 'Space' : wrongKey}</kbd> — {targetHint}</> : <>{targetHint}{typingErrors ? ` Mistakes: ${typingErrors}.` : ''}</>}</span>
           ) : (
             <span>F and J remain the anchors. Use the explorer to open a file.</span>
           )}
+          {activeLesson?.hint ? <span className="technique-note">{activeLesson.hint}</span> : null}
+          {missingCharacters.length
+            ? <span className="technique-note missing-key-warning">No visual key hint for: {missingCharacters.map(character => character === ' ' ? 'Space' : character).join(' ')}</span>
+            : null}
         </div>
       </div>
     )
@@ -1040,6 +1201,7 @@ function renderPanel({
             `attempts: ${progress.attempts.length}`,
             `accuracy: ${progress.attempts.length ? Math.round(progress.attempts.reduce((sum, attempt) => sum + attempt.accuracy, 0) / progress.attempts.length) : 0}%`,
             `best wpm: ${progress.attempts.length ? Math.max(...progress.attempts.map(attempt => attempt.wpm)) : 0}`,
+            ...recentOutput.filter(line => line.startsWith('[error]')),
           ]}
         />
       </div>
@@ -1068,6 +1230,16 @@ function renderPanel({
   )
 }
 
+function renderTargetHint(target: string, keyboard?: ResolvedKeyboard): ReactNode {
+  if (target === ' ') return <>use either thumb on <kbd>Space</kbd>.</>
+  const resolution = getKey(target, keyboard)
+  if (!resolution) return <>type <kbd>{target}</kbd>.</>
+  const keyLabel = resolution.key.legend.label ?? resolution.key.legend.base
+  const modifier = resolution.modifier === 'none' ? null : resolution.modifier
+  const fingers = resolution.key.position.fingers.map(finger => fingerNames[finger]).join(' or ')
+  return <>{modifier ? <>hold <strong>{modifier}</strong>, then </> : null}use your <strong>{fingers}</strong> on <kbd>{keyLabel.toUpperCase()}</kbd>{keyLabel.toLocaleLowerCase() !== target.toLocaleLowerCase() ? <> for <kbd>{target}</kbd></> : null}.</>
+}
+
 function renderPanelTabs(panel: PanelId, setPanel: (panel: PanelId) => void) {
   const tabs: Array<[PanelId, string]> = [
     ['problems', 'PROBLEMS'],
@@ -1094,12 +1266,14 @@ function renderStatus({
   progress,
   selectedDoc,
   finishedAttempt,
+  keyboard,
 }: {
   activeLesson: Lesson | null
   typingIndex: number
   progress: Progress
   selectedDoc: string
   finishedAttempt: Attempt | null
+  keyboard?: ResolvedKeyboard
 }) {
   const total = activeLesson?.text.length ?? 0
   const line = activeLesson ? 5 : 1
@@ -1116,8 +1290,9 @@ function renderStatus({
         <span className="status-warnings"><span className="codicon codicon-warning" /> 0</span>
       </div>
       <div className="status-right">
-        <span>{progress.settings.keyboard === 'sofle' ? 'Sofle' : 'Standard'}</span>
-        <span>{progress.settings.layout.toUpperCase()}</span>
+        <span>{keyboard?.model.label ?? getKeyboardPreset(progress.settings.formFactor).label}</span>
+        <span>{keyboard?.variant.label ?? progress.settings.standard.toUpperCase()}</span>
+        <span>{keyboard?.language.label ?? progress.settings.language.toUpperCase()}</span>
         <span>{finishedAttempt ? 'run complete' : activeLesson ? `${typingIndex}/${total} chars` : 'workspace ready'}</span>
         <span>Ln {line}, Col {col}</span>
         <span>{selectedDoc}</span>
@@ -1462,6 +1637,7 @@ function DocumentationPage({ onBack }: { onBack: () => void }) {
             <a href="#overview">Overview</a>
             <a href="#getting-started">Getting started</a>
             <a href="#lesson-progression">Lesson progression</a>
+            <a href="#course-catalog">Course catalog</a>
             <a href="#workspace">Workspace guide</a>
             <a href="#keyboard-settings">Keyboard settings</a>
             <a href="#progress">Progress and storage</a>
@@ -1472,13 +1648,13 @@ function DocumentationPage({ onBack }: { onBack: () => void }) {
           <section id="overview" className="documentation-section">
             <p className="eyebrow">SplitTyping documentation</p>
             <h1>Practice with purpose.</h1>
-            <p className="lede">SplitTyping is an accuracy-first typing trainer for standard and split keyboards.</p>
+            <p className="lede">SplitTyping is an accuracy-first typing trainer for normal keyboards with configurable presets and character layers.</p>
             <p>Lessons introduce keys progressively and present practice in a focused, code-inspired workspace. The goal is to build reliable muscle memory rather than chase speed at the expense of accuracy.</p>
           </section>
           <section id="getting-started" className="documentation-section">
             <h2>Getting started</h2>
             <ol>
-              <li>Open Settings and choose the keyboard shape and logical layout that match your hardware.</li>
+              <li>Open Settings and choose the form factor, ANSI or ISO standard, and language that match your hardware.</li>
               <li>Open the first unlocked lesson from the Explorer, or use Run → Next Lesson.</li>
               <li>Click inside the lesson editor and type the highlighted text. The keyboard map shows the expected key and finger.</li>
               <li>Review accuracy, speed, mistakes, and per-key errors in the bottom panels after each attempt.</li>
@@ -1489,6 +1665,11 @@ function DocumentationPage({ onBack }: { onBack: () => void }) {
             <h2>Lesson progression</h2>
             <p>A lesson requires two attempts with at least 95% accuracy before the next lesson unlocks. This is intentional: one accurate run shows that the lesson is possible, while a second accurate run helps confirm that the movement is becoming consistent.</p>
             <p>Incorrect keys count as mistakes and are recorded by target key. Slow down when accuracy drops; speed is measured, but accuracy controls progression.</p>
+          </section>
+          <section id="course-catalog" className="documentation-section">
+            <h2>Course catalog</h2>
+            <p>Courses load at runtime from <code>public/courses/manifest.json</code>. The manifest order defines the global learning path; each listed JSON file supplies its course metadata, lessons, focus keys, ordered drill items, and optional technique hints.</p>
+            <p>Invalid course files are skipped while valid courses remain available. Loading errors appear in the Output panel and browser console.</p>
           </section>
           <section id="workspace" className="documentation-section">
             <h2>Workspace guide</h2>
@@ -1501,8 +1682,8 @@ function DocumentationPage({ onBack }: { onBack: () => void }) {
           </section>
           <section id="keyboard-settings" className="documentation-section">
             <h2>Keyboard settings</h2>
-            <p>Choose Standard or Sofle for the physical keyboard visualization and US or Italian for the logical character layout. The selected course and keyboard map should match the keys you are physically using.</p>
-            <p>Sound feedback and the keyboard overlay can also be enabled or disabled from Settings.</p>
+            <p>Choose a full or compact form factor, match your physical ANSI or ISO key geometry, and select US English, UK English, or Italian legends. The selected keyboard map should match the keys you are physically using.</p>
+            <p>Sound feedback, the keyboard overlay, and the left/right finger diagrams can be enabled or disabled independently from Settings.</p>
           </section>
           <section id="progress" className="documentation-section">
             <h2>Progress and storage</h2>

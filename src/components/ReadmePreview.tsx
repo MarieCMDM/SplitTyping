@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { courseNames, lessonFileName } from '../app/helpers'
+import { lessonFileName } from '../app/helpers'
 import type { DocId } from '../app/types'
 import type { Lesson, Progress } from '../domain/types'
 
@@ -26,8 +26,8 @@ export default function ReadmePreview({
   onStart,
 }: Props) {
   const liveValues: Record<string, string> = {
-    '#splittyping-keyboard': progress.settings.keyboard,
-    '#splittyping-layout': progress.settings.layout,
+    '#splittyping-keyboard': progress.settings.formFactor,
+    '#splittyping-layout': `${progress.settings.standard.toUpperCase()} · ${progress.settings.language.toUpperCase()}`,
     '#splittyping-attempts': String(progress.attempts.length),
     '#splittyping-active-lesson': activeLessonId ?? 'none',
   }
@@ -48,7 +48,7 @@ export default function ReadmePreview({
             a: ({ href = '', children, ...props }) => {
               if (href in liveValues) return <code className="readme-live-value">{liveValues[href]}</code>
               if (href === '#splittyping-next-lesson') {
-                const label = next ? `${courseNames[next.course]} / ${lessonFileName(next)}` : 'No unlocked lesson yet'
+                const label = next ? `${next.courseTitle} / ${lessonFileName(next)}` : 'No unlocked lesson yet'
                 return <button type="button" className="readme-inline-action" onClick={() => onOpenLesson(next ? next.id : 'progress')}>{label}</button>
               }
               if (href in actions) return <button type="button" className="readme-inline-action" onClick={actions[href]}>{children}</button>

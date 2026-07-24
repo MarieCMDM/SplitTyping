@@ -27,9 +27,15 @@ SplitTyping is a calm, accuracy-first typing trainer for building reliable touch
 
 ## Project Aim
 
-The project aims to make touch typing deliberate and approachable. Lessons introduce keys progressively, reward accurate repetition, and provide useful feedback without turning practice into a distraction-heavy game. The trainer currently includes Foundations, English, Italian, and code-oriented exercises, with support for standard and Sofle keyboard profiles.
+The project aims to make touch typing deliberate and approachable. Lessons introduce keys progressively, reward accurate repetition, and provide useful feedback without turning practice into a distraction-heavy game. The trainer currently includes Foundations, English, Italian, and code-oriented exercises, with presets for common full-size, ISO, and compact normal keyboards.
 
-SplitTyping is also intended to become a practical companion for people learning or configuring split keyboards. The on-screen map, logical layout, lesson content, and physical keyboard should stay aligned throughout the learning process.
+SplitTyping is also intended to become a practical companion for people learning or configuring keyboards. The on-screen map separates form factor, ANSI/ISO geometry, and US, UK, or Italian legends so lesson content and physical hardware can stay aligned.
+
+## Adding courses
+
+Courses are loaded at runtime from `public/courses/manifest.json` in manifest order. To add a course, place its JSON file beside the existing course files and append its filename to the manifest. No TypeScript registry change is required.
+
+Each course declares its ID, display title, supported keyboard languages, editor format, and ordered lessons. Lessons normally provide `items`, which are joined with spaces, or may provide an exact `text` string. The optional `hint` contains technique coaching; active finger guidance is derived automatically from the selected keyboard layout.
 
 ## Installation
 

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "defaultKeyboardId": "normal",
+  "defaultLanguageId": "us",
+  "keyboards": ["normal.json"],
+  "languages": ["us.json", "uk.json", "it.json"]
+}

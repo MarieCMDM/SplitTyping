@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "id": "italian",
+  "title": "Italiano",
+  "languages": ["us", "uk", "it"],
+  "format": "markdown",
+  "lessons": [
+    {
+      "id": "parole",
+      "title": "Parole italiane",
+      "subtitle": "Ritmo e alternanza",
+      "keys": [],
+      "items": ["la", "pratica", "calma", "porta", "precisione", "e", "velocita"]
+    },
+    {
+      "id": "accenti",
+      "title": "Frasi italiane",
+      "subtitle": "Accenti sulla tastiera italiana",
+      "keys": ["é", "è", "ù", "ì"],
+      "items": ["perché", "è", "più", "facile", "così"],
+      "languages": ["it"],
+      "hint": "Use the dedicated accented keys on the Italian layout."
+    }
+  ]
+}
