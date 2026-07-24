@@ -2,6 +2,29 @@
 
 SplitTyping is a calm, accuracy-first typing trainer for building reliable touch-typing muscle memory. It presents practice as a focused, code-inspired workspace with progressive lessons, accuracy and speed metrics, keyboard visualization, and persistent local progress.
 
+> **Live demo:** [splittyping.cmdmtech.com](https://splittyping.cmdmtech.com/)
+>
+> SplitTyping is [open source on GitHub](https://github.com/MarieCMDM/SplitTyping), so you can install it locally or deploy your own instance.
+
+## Workspace
+
+| Setting | Current value |
+| --- | --- |
+| Keyboard | [Configured keyboard](#splittyping-keyboard) |
+| Layout | [Configured layout](#splittyping-layout) |
+| Attempts | [Recorded attempts](#splittyping-attempts) |
+| Active lesson | [Current lesson](#splittyping-active-lesson) |
+
+### Next Lesson
+
+[Continue with the next available lesson](#splittyping-next-lesson).
+
+### Quick Links
+
+[Open lesson](#splittyping-open-lesson) · [Inspect progress](#splittyping-progress) · [Open settings](#splittyping-settings)
+
+> **Hint — Strange Markdown, huh?** That is because the web app renders this README as its welcome page and enhances the values and links above with the current local workspace state.
+
 ## Project Aim
 
 The project aims to make touch typing deliberate and approachable. Lessons introduce keys progressively, reward accurate repetition, and provide useful feedback without turning practice into a distraction-heavy game. The trainer currently includes Foundations, English, Italian, and code-oriented exercises, with support for standard and Sofle keyboard profiles.

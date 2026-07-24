@@ -23,7 +23,7 @@ export const courseNames: Record<Course, string> = {
   code: 'Code',
 }
 
-export const initialDoc = (onboarded: boolean): DocId => (onboarded ? 'overview' : 'readme')
+export const initialDoc = (_onboarded: boolean): DocId => 'readme'
 
 export const lessonFileName = (lesson: Lesson) => {
   const slug = lesson.id.replace(/[^a-z0-9]+/gi, '_')

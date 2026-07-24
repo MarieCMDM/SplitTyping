@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import readmeSource from '../../README.md?raw'
 import Keyboard from '../components/Keyboard'
+import ReadmePreview from '../components/ReadmePreview'
 import { lessons } from '../domain/data'
 import { calculateAccuracy, calculateWpm, isUnlocked, lessonPassed, weakKeys } from '../domain/engine'
 import { commitFileName, downloadProgressExport } from '../domain/export'
@@ -31,7 +33,7 @@ export default function App() {
     '[info] open a file in the explorer to begin',
   ])
   const [workspaceLayout, setWorkspaceLayout] = useState<WorkspaceLayout>(() => loadWorkspaceLayout())
-  const [openTabs, setOpenTabs] = useState<DocId[]>(() => ['readme', ...(restoredLessonId(progress) ? [restoredLessonId(progress)!] : [])])
+  const [openTabs, setOpenTabs] = useState<DocId[]>(() => ['readme', 'overview', ...(restoredLessonId(progress) ? [restoredLessonId(progress)!] : [])])
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem('keyloom-expanded-folders-v1') ?? '') as Record<string, boolean> }
     catch { return { root: true, vscode: true, src: true, lessons: true, foundations: true, english: true, italian: true, code: true } }
@@ -68,6 +70,13 @@ export default function App() {
     [activeLessonId, eligibleLessons]
   )
 
+  const nextReadmeLesson = useMemo(
+    () => eligibleLessons.find((lesson, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.keyboard) && !lessonPassed(progress.attempts, lesson.id))
+      ?? eligibleLessons.find((_, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.keyboard))
+      ?? eligibleLessons[0],
+    [eligibleLessons, progress.attempts, progress.settings.keyboard]
+  )
+
   const openDoc = (doc: DocId) => {
     setOpenTabs(tabs => tabs.includes(doc) ? tabs : [...tabs, doc])
     if (doc === 'progress') {
@@ -95,6 +104,7 @@ export default function App() {
       return
     }
     if (doc === 'readme' || doc === 'overview') {
+      setOpenTabs(tabs => [...tabs.filter(tab => tab !== 'readme' && tab !== 'overview'), 'readme', 'overview'])
       setSelectedDoc(doc)
       setFinishedAttempt(null)
       setActiveLessonId(null)
@@ -122,6 +132,18 @@ export default function App() {
   }
 
   const closeTab = (doc: DocId) => {
+    if (doc === 'readme' || doc === 'overview') {
+      const remaining = openTabs.filter(tab => tab !== 'readme' && tab !== 'overview')
+      setOpenTabs(remaining)
+      const replacement = remaining[remaining.length - 1]
+      if (replacement) {
+        openDoc(replacement)
+        return
+      }
+      const firstLesson = eligibleLessons.find((lesson, index) => canOpenLessonWithKeyboard(lesson, eligibleLessons, progress.attempts, progress.settings.keyboard) && isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.keyboard))
+      if (firstLesson) openDoc(firstLesson.id)
+      return
+    }
     setOpenTabs(tabs => {
       const next = tabs.filter(tab => tab !== doc)
       if (doc === selectedDoc) {
@@ -341,7 +363,9 @@ export default function App() {
         ? '.vscode/settings.json'
         : selectedDoc === 'settings-ui'
           ? 'Settings'
-        : 'README.md'
+        : selectedDoc === 'overview'
+          ? 'README Preview'
+          : 'README.md'
 
   const editor = activeLesson
     ? renderLessonDoc({
@@ -354,7 +378,22 @@ export default function App() {
         onRepeat: restartLesson,
         onExit: exitLesson,
       })
-    : selectedDoc === 'progress'
+    : selectedDoc === 'readme' || selectedDoc === 'overview'
+      ? <ReadmeSplitView
+          source={renderReadmeSourceDoc(readmeSource)}
+          preview={<ReadmePreview
+            markdown={readmeSource}
+            progress={progress}
+            next={nextReadmeLesson}
+            activeLessonId={activeLessonId}
+            onOpenLesson={openDoc}
+            onOpenProgress={() => openDoc('progress')}
+            onOpenSettings={() => openDoc('settings')}
+            onStart={startWorkspace}
+          />}
+          onClose={() => closeTab(selectedDoc)}
+        />
+      : selectedDoc === 'progress'
       ? renderProgressDoc({
           progress,
           onOpenSettings: () => openDoc('settings'),
@@ -366,17 +405,9 @@ export default function App() {
             onSetting: updateSetting,
             onReset: resetAll,
           })
-        : selectedDoc === 'settings-ui'
-          ? renderSettingsUi({ progress, onSetting: updateSetting, onOpenJson: () => openDoc('settings'), onReset: resetAll })
-        : renderOverviewDoc({
-            progress,
-            eligibleLessons,
-            activeLessonId,
-            onOpenLesson: openDoc,
-            onOpenProgress: () => openDoc('progress'),
-            onOpenSettings: () => openDoc('settings'),
-            onStart: startWorkspace,
-          })
+      : selectedDoc === 'settings-ui'
+        ? renderSettingsUi({ progress, onSetting: updateSetting, onOpenJson: () => openDoc('settings'), onReset: resetAll })
+        : renderReadmeSourceDoc(readmeSource)
 
   const panelTabs = renderPanelTabs(panel, setPanel)
 
@@ -415,6 +446,7 @@ return (
         expandedFolders,
         onToggleFolder: folder => setExpandedFolders(current => ({ ...current, [folder]: !current[folder] })),
       })}
+      splitEditor={selectedDoc === 'readme' || selectedDoc === 'overview'}
       tabs={renderTabs({
         selectedDoc,
         activeLesson,
@@ -422,7 +454,7 @@ return (
         openTabs,
         onCloseTab: closeTab,
       })}
-      breadcrumbs={selectedDoc === 'progress' ? 'SplitTyping / progress.json' : selectedDoc === 'settings' ? 'SplitTyping / .vscode / settings.json' : selectedDoc === 'settings-ui' ? 'SplitTyping / Settings' : activeLesson ? `SplitTyping / src / lessons / ${activeLesson.course} / ${lessonFileName(activeLesson)}` : 'SplitTyping / README.md'}
+      breadcrumbs={selectedDoc === 'progress' ? 'SplitTyping / progress.json' : selectedDoc === 'settings' ? 'SplitTyping / .vscode / settings.json' : selectedDoc === 'settings-ui' ? 'SplitTyping / Settings' : selectedDoc === 'overview' ? 'SplitTyping / README Preview' : activeLesson ? `SplitTyping / src / lessons / ${activeLesson.course} / ${lessonFileName(activeLesson)}` : 'SplitTyping / README.md'}
       editor={editor}
       panelTabs={panelTabs}
       panel={panelBody}
@@ -466,7 +498,6 @@ function renderTabs({
   onCloseTab: (doc: DocId) => void
 }) {
   const allTabs = [
-    { id: 'readme', label: 'README.md', detail: 'welcome', active: selectedDoc === 'readme' || selectedDoc === 'overview' },
     ...(activeLesson ? [{ id: activeLesson.id, label: lessonFileName(activeLesson), detail: activeLesson.course, active: true }] : []),
     { id: 'progress', label: 'progress.json', detail: 'state', active: selectedDoc === 'progress' },
     { id: 'settings', label: '.vscode/settings.json', detail: 'settings', active: selectedDoc === 'settings' },
@@ -750,56 +781,21 @@ function TreeNode({
   )
 }
 
-function renderOverviewDoc({
-  progress,
-  eligibleLessons,
-  activeLessonId,
-  onOpenLesson,
-  onOpenProgress,
-  onOpenSettings,
-  onStart,
-}: {
-  progress: Progress
-  eligibleLessons: Lesson[]
-  activeLessonId: string | null
-  onOpenLesson: (doc: DocId) => void
-  onOpenProgress: () => void
-  onOpenSettings: () => void
-  onStart: () => void
-}) {
-  const nextIndex = Math.max(0, eligibleLessons.findIndex((lesson, index) => isUnlocked(eligibleLessons, progress.attempts, index, progress.settings.keyboard) && !lessonPassed(progress.attempts, lesson.id)))
-  const next = eligibleLessons[nextIndex] ?? eligibleLessons[0]
+function renderReadmeSourceDoc(markdown: string) {
+  const lines = markdown.trimEnd().split(/\r?\n/)
   return (
-    <section className="markdown-document">
-      <article className="markdown-content">
-        <h1>SplitTyping</h1>
-        <p className="markdown-lede">A calm, accuracy-first workspace for building real touch-typing muscle memory.</p>
-        <ReadmeMarkdown progress={progress} next={next} activeLessonId={activeLessonId} onOpenLesson={onOpenLesson} onOpenProgress={onOpenProgress} onStart={onStart} onOpenSettings={onOpenSettings} />
-      </article>
-    </section>
-  )
-}
-
-function ReadmeMarkdown({ progress, next, activeLessonId, onOpenLesson, onOpenProgress, onStart, onOpenSettings }: { progress: Progress; next?: Lesson; activeLessonId: string | null; onOpenLesson: (id: DocId) => void; onOpenProgress: () => void; onStart: () => void; onOpenSettings: () => void }) {
-  return (
-    <div className="readme-markdown">
-      <h2>Workspace</h2>
-      <p>Practice touch typing in a quiet, code-first workspace.</p>
-      <div className="readme-table">
-        <div><span>keyboard</span><code>{progress.settings.keyboard}</code></div>
-        <div><span>layout</span><code>{progress.settings.layout}</code></div>
-        <div><span>attempts</span><code>{progress.attempts.length}</code></div>
-        <div><span>active lesson</span><code>{activeLessonId ?? 'none'}</code></div>
-      </div>
-      <h2>Next lesson</h2>
-      <p>{next ? `Continue with ${courseNames[next.course]} / ${lessonFileName(next)}.` : 'No unlocked lesson yet.'}</p>
-      <div className="readme-markdown-links">
-        <button type="button" onClick={onStart}>[ Start workspace ]</button>
-        <button type="button" onClick={() => onOpenLesson(next ? next.id : 'progress')}>[ Open lesson ]</button>
-        <button type="button" onClick={onOpenProgress}>[ Inspect progress ]</button>
-        <button type="button" onClick={onOpenSettings}>[ Open settings ]</button>
-      </div>
-    </div>
+    <DocumentFrame
+      title="README.md"
+      language="markdown"
+      path="README.md"
+      actions={null}
+      lines={lines.map((text, index) => {
+        const kind = text.startsWith('#') ? 'heading' : text.startsWith('```') ? 'comment' : 'markdown'
+        return <CodeLine key={index} kind={kind} text={text} />
+      })}
+      footer={null}
+      hideFooter
+    />
   )
 }
 
@@ -1149,18 +1145,100 @@ function DocumentFrame({
   hideFooter?: boolean
   inlineContent?: ReactNode
 }) {
+  const editorRef = useRef<HTMLDivElement>(null)
+  const scrollbarRef = useRef<HTMLDivElement>(null)
+  const dragOffsetRef = useRef(0)
+  const [scrollState, setScrollState] = useState({ top: 0, height: 1 })
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+
+    const updateScrollState = () => {
+      const maxScroll = Math.max(0, editor.scrollHeight - editor.clientHeight)
+      const ratio = editor.scrollHeight > 0 ? Math.min(1, editor.clientHeight / editor.scrollHeight) : 1
+      setScrollState({
+        top: maxScroll > 0 ? editor.scrollTop / maxScroll : 0,
+        height: ratio,
+      })
+    }
+
+    updateScrollState()
+    editor.addEventListener('scroll', updateScrollState, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateScrollState)
+    observer?.observe(editor)
+    if (editor.firstElementChild) observer?.observe(editor.firstElementChild)
+
+    return () => {
+      editor.removeEventListener('scroll', updateScrollState)
+      observer?.disconnect()
+    }
+  }, [lines.length])
+
+  const scrollToPointer = (clientY: number, grabOffset = 0) => {
+    const editor = editorRef.current
+    const scrollbar = scrollbarRef.current
+    if (!editor || !scrollbar) return
+    const trackHeight = scrollbar.clientHeight
+    const thumbHeight = trackHeight * scrollState.height
+    const available = Math.max(1, trackHeight - thumbHeight)
+    const trackRect = scrollbar.getBoundingClientRect()
+    const position = Math.max(0, Math.min(available, clientY - trackRect.top - grabOffset))
+    const maxScroll = Math.max(0, editor.scrollHeight - editor.clientHeight)
+    editor.scrollTop = (position / available) * maxScroll
+  }
+
+  const handleScrollbarPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const thumbHeight = scrollbarRef.current ? scrollbarRef.current.clientHeight * scrollState.height : 0
+    const target = event.target as HTMLElement
+    dragOffsetRef.current = target.dataset.scrollThumb === 'true' ? event.nativeEvent.offsetY : thumbHeight / 2
+    if (target.dataset.scrollThumb !== 'true') scrollToPointer(event.clientY)
+    else scrollToPointer(event.clientY, dragOffsetRef.current)
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const handleScrollbarPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      scrollToPointer(event.clientY, dragOffsetRef.current)
+    }
+  }
+
   return (
     <section className="document-frame">
       <div className="editor-grid">
         <div className="editor-gutter">
           {lines.map((_, index) => <span key={index}>{index + 1}</span>)}
         </div>
-        <div className="editor-code">
+        <div className="editor-code" ref={editorRef}>
           {lines.map((line, index) => <div className="code-row" key={index}>{line}</div>)}
           {inlineContent}
         </div>
         <div className="editor-minimap">
-          {lines.map((_, index) => <i key={index} className={index === 4 ? 'active' : ''} />)}
+          <div className="minimap-lines" aria-hidden="true">
+            {lines.map((line, index) => <div className="minimap-line" key={index}>{line}</div>)}
+          </div>
+          <div
+            className="minimap-viewport"
+            style={{ top: `${scrollState.top * (100 - scrollState.height * 100)}%`, height: `${scrollState.height * 100}%` }}
+            aria-hidden="true"
+          />
+        </div>
+        <div
+          className="editor-scrollbar"
+          ref={scrollbarRef}
+          role="scrollbar"
+          aria-label="Editor scrollbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(scrollState.top * 100)}
+          onPointerDown={handleScrollbarPointerDown}
+          onPointerMove={handleScrollbarPointerMove}
+        >
+          <div
+            className="editor-scrollbar-thumb"
+            data-scroll-thumb="true"
+            style={{ top: `${scrollState.top * (100 - scrollState.height * 100)}%`, height: `${scrollState.height * 100}%` }}
+          />
         </div>
       </div>
       {!hideFooter && footer ? <div className="document-footer">{footer}</div> : null}
@@ -1170,6 +1248,62 @@ function DocumentFrame({
 
 function CodeLine({ kind, text }: { kind: string; text: string }) {
   return <span className={`code-line ${kind}`}>{text}</span>
+}
+
+function ReadmeSplitView({ source, preview, onClose }: { source: ReactNode; preview: ReactNode; onClose: () => void }) {
+  const splitRef = useRef<HTMLDivElement>(null)
+  const syncing = useRef(false)
+
+  useEffect(() => {
+    const root = splitRef.current
+    const sourceScroller = root?.querySelector<HTMLElement>('.editor-code')
+    const previewScroller = root?.querySelector<HTMLElement>('.markdown-document')
+    if (!sourceScroller || !previewScroller) return
+
+    const syncScroll = (from: HTMLElement, to: HTMLElement) => {
+      if (syncing.current) return
+      const fromMax = Math.max(0, from.scrollHeight - from.clientHeight)
+      const toMax = Math.max(0, to.scrollHeight - to.clientHeight)
+      const ratio = fromMax > 0 ? from.scrollTop / fromMax : 0
+      syncing.current = true
+      to.scrollTop = ratio * toMax
+      requestAnimationFrame(() => { syncing.current = false })
+    }
+
+    const onSourceScroll = () => syncScroll(sourceScroller, previewScroller)
+    const onPreviewScroll = () => syncScroll(previewScroller, sourceScroller)
+    sourceScroller.addEventListener('scroll', onSourceScroll, { passive: true })
+    previewScroller.addEventListener('scroll', onPreviewScroll, { passive: true })
+
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+      syncScroll(sourceScroller, previewScroller)
+    })
+    resizeObserver?.observe(sourceScroller)
+    resizeObserver?.observe(previewScroller)
+
+    return () => {
+      sourceScroller.removeEventListener('scroll', onSourceScroll)
+      previewScroller.removeEventListener('scroll', onPreviewScroll)
+      resizeObserver?.disconnect()
+    }
+  }, [])
+
+  return (
+    <div className="readme-split-editor" ref={splitRef}>
+      <section className="readme-pane">
+        <div className="readme-pane-tabs">
+          <div className="readme-pane-tab active"><FileIcon label="README.md" /><span>README.md</span><button type="button" aria-label="Close README pair" onClick={onClose}><span className="codicon codicon-close" /></button></div>
+        </div>
+        <div className="readme-pane-content">{source}</div>
+      </section>
+      <section className="readme-pane">
+        <div className="readme-pane-tabs">
+          <div className="readme-pane-tab active"><FileIcon label="README Preview" /><span>Preview README.md</span><button type="button" aria-label="Close README pair" onClick={onClose}><span className="codicon codicon-close" /></button></div>
+        </div>
+        <div className="readme-pane-content">{preview}</div>
+      </section>
+    </div>
+  )
 }
 
 function JsonLine({ text }: { text: string }) {

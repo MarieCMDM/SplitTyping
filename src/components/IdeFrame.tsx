@@ -18,6 +18,7 @@ interface Props {
   command: string
   explorer: ReactNode
   tabs: ReactNode
+  splitEditor?: boolean
   breadcrumbs: ReactNode
   editor: ReactNode
   panelTabs: ReactNode
@@ -75,6 +76,7 @@ export default function IdeFrame({
   command,
   explorer,
   tabs,
+  splitEditor = false,
   breadcrumbs,
   editor,
   panelTabs,
@@ -262,8 +264,8 @@ export default function IdeFrame({
         <ActivityBar activeView={activityView} onViewChange={onActivityView} onRunDebug={onRunDebug} />
         <aside className="sidebar">{explorer}</aside>
         <div className="resize-handle sidebar-resize" role="separator" aria-label="Resize Explorer" onPointerDown={event => startResize('sidebar', event)} />
-        <section className="main-area">
-          {tabs}
+        <section className={`main-area ${splitEditor ? 'readme-split' : ''}`}>
+          {splitEditor ? null : tabs}
           <div className="main-toolbar">
             <span className="crumbs">{breadcrumbs}</span>
             <span className="editor-location">{command}</span>
